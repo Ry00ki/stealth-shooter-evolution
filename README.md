@@ -10,8 +10,8 @@ Over more than a dozen versions, the game evolved from a simple patrol-based ste
 
 ## Getting Started
 
-1. **Download a Release:** Clone or download this repository.  Each playable HTML file lives in the `versions/` folder.  The latest stable build is `stealth_shooter_levels_v17_2.html`.
-2. **Run Locally:** Open the HTML file in any modern browser.  The game does not require a build step or external assets.
+1. **Download the Repository:** Clone or download this repository.  The playable build ships as a single self-contained HTML file at the project root: `stealth_shooter_levels.html`.
+2. **Run Locally:** Open `stealth_shooter_levels.html` in any modern browser.  The game does not require a build step or external assets.
 3. **Adjust Screen Size:** At startup the game measures your window to set the arena size.  To replay with a different arena, reload the page after resizing your window.
 
 ## Controls
@@ -36,9 +36,9 @@ Over more than a dozen versions, the game evolved from a simple patrol-based ste
 
 ## File Structure
 
-- **index.html** – Landing page or latest build (to be defined).
-- **versions/** – Archive of every playable build for reproducibility.  For example, `stealth_shooter_levels_v16_2.html` and `stealth_shooter_levels_v17.html` correspond to published versions.
-- **docs/** – Word documents summarising functional and technical changes per version, like `stealth_shooter_levels_v17_2.docx`.
+- **stealth_shooter_levels.html** – The latest playable build containing the entire game.
+- **README.md** – Project overview, controls, and contribution guidance.
+- **LICENSE** – MIT license text.
 
 ## Contributing
 
