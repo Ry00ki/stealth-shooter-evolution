@@ -223,6 +223,82 @@
     function lifeUpJingle(){ chord(['triangle'], [660,880], 0.10, 0.6, 0.03); }
     function stamUpJingle(){ chord(['triangle'], [880,1100], 0.10, 0.6, 0.03); }
 
+    function createEnemyRegistry(baseSpec){
+      if(!baseSpec || !baseSpec.id){ throw new Error('Enemy registry requires a base spec with an id'); }
+      const map=new Map();
+      const baseCopy=Object.assign({}, baseSpec);
+      map.set(baseCopy.id, Object.assign({}, baseSpec));
+
+      function register(spec){
+        if(!spec || !spec.id) throw new Error('Enemy spec must include an id');
+        map.set(spec.id, Object.assign({}, spec));
+        return map.get(spec.id);
+      }
+
+      function get(id){ return map.get(id) || map.get(baseCopy.id); }
+      function all(){ return Array.from(map.values()); }
+      function dropSpec(kindId){
+        const base=get(baseCopy.id);
+        const spec=get(kindId);
+        return Object.assign({}, base?.drop||{}, spec?.drop||{});
+      }
+      function unlocked(level){ return all().filter(spec=> level >= (spec.minLevel||1)); }
+      function create(kindId,x,y,th){
+        const base=get(baseCopy.id);
+        const spec=get(kindId);
+        const params=Object.assign({}, base?.params||{}, spec?.params||{});
+        const drop=dropSpec(kindId);
+        const pathFactory=params.path || base?.params?.path || (()=>[]);
+        const path=pathFactory({x,y});
+        return {
+          kind:spec.id,
+          params,
+          drop,
+          x,y,
+          r:12,
+          vx:Math.cos(th),
+          vy:Math.sin(th),
+          path,
+          pi:0,
+          state:STATE.PATROL,
+          ls:null,
+          invT:0,
+          retI:0,
+          shoot:0,
+          stuck:0,
+          lx:x,
+          ly:y,
+          hint:null,
+          color:spec.color||base?.color||'#9ca3af',
+          snipeT:(spec.id==='sniper'?SNIPER_AIM:null),
+          aiming:false,
+          aimX:0,
+          aimY:0,
+          flash:0,
+          burstR:0,
+          burstGap:0
+        };
+      }
+
+      return { register, get, all, unlocked, create, dropSpec, base:()=>Object.assign({}, baseCopy) };
+    }
+
+    function createBonusRegistry(){
+      const map=new Map();
+      function register(spec){
+        if(!spec || !spec.id) throw new Error('Bonus spec must include an id');
+        map.set(spec.id, Object.assign({}, spec));
+        return map.get(spec.id);
+      }
+      function get(id){ return map.get(id); }
+      function spawn(id, context){
+        const spec=get(id);
+        if(!spec || typeof spec.spawn!=='function') return false;
+        return spec.spawn(context||{});
+      }
+      return { register, get, spawn };
+    }
+
     const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy};
     const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx,ay-by);
     const norm=(x,y)=>{const m=Math.hypot(x,y);return m>1e-8?[x/m,y/m]:[0,0]};
@@ -296,16 +372,99 @@
       beep('triangle', 980, 0.05, 0.55*S); beep('square', 660, 0.03, 0.35*S, 0.03);
     }
 
-    const KINDS = {
-      patrol: { id:'patrol', label:'Patrol', color:'#9ca3af', minLevel:1, wBase:1.00, wPerLevel:-0.02,
-        params:{ s:120, sc:165, fov:FOV, vd:VIEW_DIST, hear:HEAR, ranged:null, path:(pos)=>patrolSquare(pos,96) }, drop:{ power:'omni', duration:30, label:'OMNI' } },
-      gunner: { id:'gunner', label:'Gunner', color:'#c084fc', minLevel:2, wBase:0.35, wPerLevel:0.02,
-        params:{ s:115, sc:165, fov:FOV*0.95, vd:VIEW_DIST*1.05, hear:HEAR, ranged:{bulletSpeed:460, cd:0.9}, path:(pos)=>patrolSquare(pos,96) }, drop:{ power:'omni', duration:26, label:'GUN' } },
-      sentry: { id:'sentry', label:'Sentry', color:'#f472b6', minLevel:4, wBase:0.10, wPerLevel:0.03,
-        params:{ s:60, sc:130, fov:FOV*1.2, vd:VIEW_DIST*1.1, hear:HEAR*0.8, ranged:null, path:(pos)=>patrolSquare(pos,40) }, drop:{ power:'omni', duration:24, label:'GUN' } },
-      sniper: { id:'sniper', label:'Sniper', color:'#60a5fa', minLevel:3, wBase:0.12, wPerLevel:0.03,
-        params:{ s:85, sc:140, fov:FOV*0.9, vd:VIEW_DIST*2.0, hear:HEAR, ranged:null, path:(pos)=>patrolSquare(pos,96) }, drop:{ power:'omni', duration:28, label:'GUN' } }
-    };
+    const enemyRegistry = createEnemyRegistry({
+      id:'patrol',
+      label:'Patrol',
+      color:'#9ca3af',
+      minLevel:1,
+      wBase:1.00,
+      wPerLevel:-0.02,
+      params:{ s:120, sc:165, fov:FOV, vd:VIEW_DIST, hear:HEAR, ranged:null, path:(pos)=>patrolSquare(pos,96) },
+      drop:{ power:'omni', duration:30, label:'OMNI' }
+    });
+    enemyRegistry.register({
+      id:'gunner',
+      label:'Gunner',
+      color:'#c084fc',
+      minLevel:2,
+      wBase:0.35,
+      wPerLevel:0.02,
+      params:{ s:115, sc:165, fov:FOV*0.95, vd:VIEW_DIST*1.05, hear:HEAR, ranged:{bulletSpeed:460, cd:0.9}, path:(pos)=>patrolSquare(pos,96) },
+      drop:{ power:'omni', duration:26, label:'GUN' }
+    });
+    enemyRegistry.register({
+      id:'sentry',
+      label:'Sentry',
+      color:'#f472b6',
+      minLevel:4,
+      wBase:0.10,
+      wPerLevel:0.03,
+      params:{ s:60, sc:130, fov:FOV*1.2, vd:VIEW_DIST*1.1, hear:HEAR*0.8, ranged:null, path:(pos)=>patrolSquare(pos,40) },
+      drop:{ power:'omni', duration:24, label:'GUN' }
+    });
+    enemyRegistry.register({
+      id:'sniper',
+      label:'Sniper',
+      color:'#60a5fa',
+      minLevel:3,
+      wBase:0.12,
+      wPerLevel:0.03,
+      params:{ s:85, sc:140, fov:FOV*0.9, vd:VIEW_DIST*2.0, hear:HEAR, ranged:null, path:(pos)=>patrolSquare(pos,96) },
+      drop:{ power:'omni', duration:28, label:'GUN' }
+    });
+
+    const bonusRegistry = createBonusRegistry();
+
+    function findBonusSpot(radius, context){
+      const rad=radius||10;
+      const g=context?.game || game;
+      const safeZone=context?.safe || level.safe;
+      if(!g || !safeZone) return null;
+      for(let t=0;t<800;t++){
+        const x=40+Math.random()*(W-80), y=40+Math.random()*(H-80);
+        if(dist(x,y,safeZone.x,safeZone.y) < SAFE_R+16) continue;
+        const box={x:x-rad,y:y-rad,w:rad*2,h:rad*2};
+        if((g.walls||[]).some(w=>rectsOverlap(w,box))) continue;
+        return {x,y};
+      }
+      return null;
+    }
+
+    bonusRegistry.register({
+      id:'power',
+      spawn(context){
+        const g=context?.game || game;
+        if(!g) return false;
+        const kind=context?.kind || 'patrol';
+        const spec=getDropSpec(kind);
+        if(typeof context?.x !== 'number' || typeof context?.y !== 'number') return false;
+        g.drops.push({x:context.x, y:context.y, kind, spec, life:DROP_LIFE, type:'gun'});
+        beep('square',520,0.07,0.5);
+        return true;
+      }
+    });
+    bonusRegistry.register({
+      id:'heart',
+      spawn(context){
+        const g=context?.game || game;
+        if(!g) return false;
+        const spot=findBonusSpot(10, {game:g, safe:context?.safe || level.safe});
+        if(!spot) return false;
+        g.hearts.push({x:spot.x,y:spot.y,life:HEART_LIFE});
+        return true;
+      }
+    });
+    bonusRegistry.register({
+      id:'stamina',
+      spawn(context){
+        const g=context?.game || game;
+        if(!g) return false;
+        const spot=findBonusSpot(10, {game:g, safe:context?.safe || level.safe});
+        if(!spot) return false;
+        g.stims.push({x:spot.x,y:spot.y,life:15.0});
+        return true;
+      }
+    });
 
     function weightOf(kind, level){
       const m = kind.minLevel || 1;
@@ -315,7 +474,7 @@
       const steps = (level - m + 1);
       return Math.max(0, wb + wg * steps);
     }
-    function unlockedKinds(level){ return Object.values(KINDS).filter(k=>level >= (k.minLevel||1)); }
+    function unlockedKinds(level){ return enemyRegistry.unlocked(level); }
     function varietyTarget(level){ const unlocked = unlockedKinds(level).length; const goal = 1 + Math.floor(level/2) + Math.floor(level/3); return Math.max(1, Math.min(unlocked, goal)); }
 
     function pickKindsUnique(level, k){
@@ -334,11 +493,7 @@
       return entries[0].id;
     }
 
-    function makeEnemy(kindId, x, y, th){
-      const base=KINDS.patrol; const kind=KINDS[kindId] || base; const params=Object.assign({}, base.params, kind.params||{}); const drop=Object.assign({}, base.drop||{}, kind.drop||{}); const path=(params.path||base.params.path)({x,y});
-      return { kind:kind.id, params, drop, x,y,r:12, vx:Math.cos(th), vy:Math.sin(th), path, pi:0, state:STATE.PATROL,
-        ls:null, invT:0, retI:0, shoot:0, stuck:0, lx:x, ly:y, hint:null, color:kind.color||'#9ca3af', snipeT:(kind.id==='sniper'?SNIPER_AIM:null), aiming:false, aimX:0, aimY:0, flash:0, burstR:0, burstGap:0 };
-    }
+    function makeEnemy(kindId, x, y, th){ return enemyRegistry.create(kindId, x, y, th); }
 
     function spawnFar(walls,safe,guards){
       for(let t=0;t<800;t++){
@@ -590,37 +745,19 @@
 
     function getDropSpec(kind){
       const base={power:'omni', duration:26, label:'GUN'};
-      const kd=KINDS[kind];
-      return kd&&kd.drop?Object.assign({},base,kd.drop):base;
+      const kd=enemyRegistry.get(kind);
+      return Object.assign({}, base, kd?.drop||{});
     }
     function spawnDrop(kind, x, y){
-      const spec=getDropSpec(kind);
-      game.drops.push({x,y,kind,spec,life:DROP_LIFE, type:'gun'});
-      beep('square',520,0.07,0.5);
+      bonusRegistry.spawn('power', {game, kind, x, y});
     }
 
     function spawnHeart(){
-      for(let t=0;t<800;t++){
-        const x=40+Math.random()*(W-80), y=40+Math.random()*(H-80);
-        if(dist(x,y,level.safe.x,level.safe.y) < SAFE_R+16) continue;
-        const box={x:x-10,y:y-10,w:20,h:20};
-        if(game.walls.some(w=>rectsOverlap(w,box))) continue;
-        game.hearts.push({x,y,life:HEART_LIFE});
-        return true;
-      }
-      return false;
+      return bonusRegistry.spawn('heart', {game, safe:level.safe});
     }
 
     function spawnStam(){
-      for(let t=0;t<800;t++){
-        const x=40+Math.random()*(W-80), y=40+Math.random()*(H-80);
-        if(dist(x,y,level.safe.x,level.safe.y) < SAFE_R+16) continue;
-        const box={x:x-10,y:y-10,w:20,h:20};
-        if(game.walls.some(w=>rectsOverlap(w,box))) continue;
-        game.stims.push({x,y,life:15.0});
-        return true;
-      }
-      return false;
+      return bonusRegistry.spawn('stamina', {game, safe:level.safe});
     }
 
     function maybeSpawnHeart(trigger){
