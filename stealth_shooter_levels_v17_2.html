@@ -137,7 +137,9 @@
     const DOUBLE_TAP_MS=260;
     const STAMINA_MIN_TO_SPRINT=10;
 
-    let keys={}, debug=false, audioOn=true;
+    const params = new URLSearchParams(window.location.search);
+    const RUN_ASSERT_CHECKS = params.has('asserts');
+    let keys={}, debug=params.has('debug'), audioOn=true;
     let audioCtx=null;
     const ovD=document.getElementById('ov-countdown'), cdVal=document.getElementById('cdVal');
     const ovG=document.getElementById('ov-gameover'), goVal=document.getElementById('goVal');
@@ -945,25 +947,27 @@
     startLevel(1,true,START_LIVES);
     requestAnimationFrame(loop);
 
-    setTimeout(()=>{
-      const tm=setInterval(()=>{
-        if(ui.status==='playing' && game){
-          const p=game.player; const before=p.stamina; p.sprinting=true; p.sprintDir=[1,0]; p.stamina=STAMINA_MAX; game.last=performance.now(); step(performance.now()+100); console.assert(p.stamina<before,'stamina drains while sprinting'); cancelSprint(); clearInterval(tm);
-        }
-      },200);
-      const tm2=setInterval(()=>{
-        if(ui.status==='playing' && game){
-          const p=game.player;
-          p.superT=1.0; step(performance.now()+120);
-          const has = document.getElementById('staminaPill').classList.contains('super');
-          console.assert(has,'super stamina should toggle pill class');
-          p.superT=0; step(performance.now()+140);
-          const has2 = document.getElementById('staminaPill').classList.contains('super');
-          console.assert(!has2,'super off clears pill class');
-          clearInterval(tm2);
-        }
-      },220);
-    },800);
+    if(RUN_ASSERT_CHECKS){
+      setTimeout(()=>{
+        const tm=setInterval(()=>{
+          if(ui.status==='playing' && game){
+            const p=game.player; const before=p.stamina; p.sprinting=true; p.sprintDir=[1,0]; p.stamina=STAMINA_MAX; game.last=performance.now(); step(performance.now()+100); console.assert(p.stamina<before,'stamina drains while sprinting'); cancelSprint(); clearInterval(tm);
+          }
+        },200);
+        const tm2=setInterval(()=>{
+          if(ui.status==='playing' && game){
+            const p=game.player;
+            p.superT=1.0; step(performance.now()+120);
+            const has = document.getElementById('staminaPill').classList.contains('super');
+            console.assert(has,'super stamina should toggle pill class');
+            p.superT=0; step(performance.now()+140);
+            const has2 = document.getElementById('staminaPill').classList.contains('super');
+            console.assert(!has2,'super off clears pill class');
+            clearInterval(tm2);
+          }
+        },220);
+      },800);
+    }
   }catch(err){
     showErr('Startup error: '+(err&&err.message?err.message:String(err)));
   }
