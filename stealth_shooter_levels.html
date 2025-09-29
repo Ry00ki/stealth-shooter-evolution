@@ -116,6 +116,7 @@
     const START_LIVES=3, BASE_TIME=20;
     const CHIP_MIN=4, CHIP_MAX=10, DROP_MULT=2;
     const PLAYER_SPEED=160, CARRY_SPEED=108;
+    const HOVER_ACCEL=14, HOVER_DECEL=4.5, HOVER_TURN=10;
     const VIEW_DIST=240, FOV=Math.PI*70/180, HEAR=VIEW_DIST*2.4;
     const BULLET_SPEED=460, BULLET_LIFE=1.2, BCD=0.25;
     const STATE={PATROL:0,INV:1,CHASE:2,RET:3};
@@ -811,16 +812,34 @@
       // Parenthesise each term so both axes can be non-zero, preserving diagonals
       const ix = (rt?1:0) - (lf?1:0);
       const iy = (dn?1:0) - (up?1:0);
+      let targetX=0, targetY=0, hasInput=false;
       if(ix!==0 || iy!==0){
         const v=norm(ix,iy);
-        p.vx=v[0];
-        p.vy=v[1];
-        p.ax=v[0];
-        p.ay=v[1];
-      } else {
-        p.vx=0;
-        p.vy=0;
+        targetX=v[0];
+        targetY=v[1];
+        hasInput=true;
       }
+      const accel = hasInput ? HOVER_ACCEL : HOVER_DECEL;
+      const ease = 1 - Math.exp(-dt*accel);
+      p.vx += (targetX - p.vx)*ease;
+      p.vy += (targetY - p.vy)*ease;
+      const mag = Math.hypot(p.vx,p.vy);
+      if(mag>1){ p.vx/=mag; p.vy/=mag; }
+      if(Math.abs(p.vx)<0.0005) p.vx=0;
+      if(Math.abs(p.vy)<0.0005) p.vy=0;
+
+      let faceX=p.ax, faceY=p.ay;
+      if(hasInput){
+        faceX=targetX; faceY=targetY;
+      } else {
+        const velMag=Math.hypot(p.vx,p.vy);
+        if(velMag>0.001){ faceX=p.vx/velMag; faceY=p.vy/velMag; }
+      }
+      const turnEase = 1 - Math.exp(-dt*HOVER_TURN);
+      p.ax += (faceX - p.ax)*turnEase;
+      p.ay += (faceY - p.ay)*turnEase;
+      const faceMag=Math.hypot(p.ax,p.ay)||1;
+      p.ax/=faceMag; p.ay/=faceMag;
       const baseSp=p.carry?CARRY_SPEED:PLAYER_SPEED;
       let speed=baseSp;
       if(p.superT>0){ p.superT=Math.max(0,p.superT-dt); staminaPill.classList.add('super'); } else { staminaPill.classList.remove('super'); stBonus.textContent='—'; stBonus.style.animation=''; stBonus.style.color='#06b6d4'; }
